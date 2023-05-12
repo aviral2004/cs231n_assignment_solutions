@@ -27,6 +27,7 @@ def softmax_loss_naive(W, X, y, reg):
     dW = np.zeros_like(W)
 
     num_samples = X.shape[0]
+    num_dimensions = X.shape[1]
 
     #############################################################################
     # TODO: Compute the softmax loss and its gradient using explicit loops.     #
@@ -37,15 +38,27 @@ def softmax_loss_naive(W, X, y, reg):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     for i in range(num_samples):
-        scores = X[i] @ W
+        input = X[i]
+        correct_class = y[i]
+
+        scores = input @ W
         scores -= np.max(scores)
 
         p = np.exp(scores)
         p /= np.sum(p)
 
-        loss += -np.log(p)[y[i]]
+        # make input array into matrix with one row so that transpose works
+        dW += p*(input.reshape(1, num_dimensions)).T
+        dW[:, correct_class] -= input.T
+
+        loss += -np.log(p)[correct_class]
 
     loss /= num_samples
+    loss += reg*np.sum(W*W)
+
+    dW /= num_samples
+    dW += 2*reg*W
+
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     return loss, dW
@@ -60,6 +73,8 @@ def softmax_loss_vectorized(W, X, y, reg):
     # Initialize the loss and gradient to zero.
     loss = 0.0
     dW = np.zeros_like(W)
+    
+    num_samples = X.shape[0]
 
     #############################################################################
     # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
@@ -69,8 +84,23 @@ def softmax_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    scores = X @ W
+    scores -= np.max(scores) # to make division give valid result, numerical computation trick
 
+    p = np.exp(scores)
+    sums = np.sum(p, axis = 1).reshape(num_samples, 1)
+    p /= sums
+
+    losses = -np.log(p)[np.arange(num_samples), y]
+
+    loss += np.sum(losses)/num_samples
+    loss += reg*np.sum(W*W)
+
+    p[np.arange(num_samples), y] -= 1
+
+    dW += X.T@p
+    dW /= num_samples
+    dW += 2*reg*W
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     return loss, dW
