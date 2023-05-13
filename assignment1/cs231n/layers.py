@@ -13,7 +13,7 @@ def affine_forward(x, w, b):
     then transform it to an output vector of dimension M.
 
     Inputs:
-    - x: A numpy array containing input data, of shape (N, d_1, ..., d_k)
+    - x: A numpy array containing input data, of shape (N, d_1, ..., d_k) = (N, D)
     - w: A numpy array of weights, of shape (D, M)
     - b: A numpy array of biases, of shape (M,)
 
@@ -27,8 +27,10 @@ def affine_forward(x, w, b):
     # will need to reshape the input into rows.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    
+    N = x.shape[0]
+    _x = x.reshape(N, np.product(x.shape[1:]))
+    out = _x @ w + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -45,7 +47,7 @@ def affine_backward(dout, cache):
     Inputs:
     - dout: Upstream derivative, of shape (N, M)
     - cache: Tuple of:
-      - x: Input data, of shape (N, d_1, ... d_k)
+      - x: Input data, of shape (N, d_1, ... d_k) = (N, D)
       - w: Weights, of shape (D, M)
       - b: Biases, of shape (M,)
 
@@ -61,7 +63,9 @@ def affine_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = (dout @ w.T).reshape(x.shape)
+    dw = x.reshape(x.shape[0], -1).T @ dout
+    db = np.sum(dout, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -87,7 +91,7 @@ def relu_forward(x):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = np.maximum(0, x)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -102,7 +106,7 @@ def relu_backward(dout, cache):
     Computes the backward pass for a layer of rectified linear units (ReLUs).
 
     Input:
-    - dout: Upstream derivatives, of any shape
+    - dout: Upstream derivatives, of any shape -> (x.shape)
     - cache: Input x, of same shape as dout
 
     Returns:
@@ -114,7 +118,7 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = dout * (x > 0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -773,7 +777,16 @@ def svm_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_samples = x.shape[0]
+
+    correct_class_scores = x[np.arange(num_samples), y].reshape((num_samples, -1))
+    margin = np.maximum(0, x - correct_class_scores + 1)
+    loss = np.sum(margin) / num_samples
+    loss -= 1
+
+    # Subtract 1 from the correct class score for each sample
+    dx = (margin > 0).astype(int) / num_samples
+    dx[np.arange(num_samples), y] -= np.sum(dx, axis=1)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -803,7 +816,20 @@ def softmax_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_samples = x.shape[0]
+  
+    scores = x - np.max(x)
+
+    p = np.exp(scores)
+    sums = np.sum(p, axis = 1).reshape(num_samples, 1)
+    p /= sums
+
+    losses = -np.log(p)[np.arange(num_samples), y]
+    loss = np.sum(losses)/num_samples
+
+    dx = p
+    dx[np.arange(num_samples), y] -= 1
+    dx /= num_samples
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
