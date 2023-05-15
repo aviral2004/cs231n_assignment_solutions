@@ -69,8 +69,14 @@ def sgd_momentum(w, dw, config=None):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    mu = config['momentum']
+    lr = config['learning_rate']
 
+    v = mu*v - lr*dw
+
+    w += v
+    next_w = w
+ 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -106,8 +112,17 @@ def rmsprop(w, dw, config=None):
     # config['cache'].                                                        #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    lr = config['learning_rate']
+    dr = config['decay_rate']
+    eps = config['epsilon']
+    cache = config['cache']
 
-    pass
+    cache = dr * cache + (1 - dr) * (dw ** 2)
+
+    w += -lr * dw / (np.sqrt(cache) + eps)
+    next_w = w
+
+    config['cache'] = cache
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -152,7 +167,27 @@ def adam(w, dw, config=None):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    lr = config['learning_rate']
+    beta1 = config['beta1']
+    beta2 = config['beta2']
+    eps = config['epsilon']
+    m = config['m']
+    v = config['v']
+    t = config['t']
+
+    config['t'] = t = t + 1
+
+    m = beta1*m + (1 - beta1) * dw
+    mt = m / (1 - beta1**t)
+
+    v = beta2*v + (1 - beta2) * (dw ** 2)
+    vt = v / (1 - beta2**t)
+
+    w += -lr * mt / (np.sqrt(vt) + eps)
+
+    next_w = w
+    config['m'] = m
+    config['v'] = v
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

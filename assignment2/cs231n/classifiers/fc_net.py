@@ -78,8 +78,8 @@ class FullyConnectedNet(object):
         self.params['b1'] = np.zeros(hidden_dims[0])
 
         for i in range(self.num_layers - 2):
-            self.params[f"W{i + 2}"] = np.random.normal(0, weight_scale, (hidden_dims[i - 1], hidden_dims[i])) # initialising all the weights to a normal distribution of mean = 0, and std = weight_scale
-            self.params[f"b{i + 2}"] = np.zeros(hidden_dims[i])
+            self.params[f"W{i + 2}"] = np.random.normal(0, weight_scale, (hidden_dims[i], hidden_dims[i + 1])) # initialising all the weights to a normal distribution of mean = 0, and std = weight_scale
+            self.params[f"b{i + 2}"] = np.zeros(hidden_dims[i + 1])
 
         self.params[f"W{self.num_layers}"] = np.random.normal(0, weight_scale, (hidden_dims[-1], num_classes))
         self.params[f"b{self.num_layers}"] = np.zeros(num_classes)
@@ -205,14 +205,20 @@ class FullyConnectedNet(object):
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
         loss, dloss = softmax_loss(scores, y)
-        loss += 0.5 * self.reg * np.sum([self.params[f"W{i + 1}"] for i in range(self.num_layers)])
 
         inter_grads = {}
+        l2_loss = lambda n: 0.5 * self.reg * np.sum(self.params[f"W{n}"]**2)
 
-        inter_grads[self.num_layers], grads[f'W{self.num_layers}'], grads[f"b{self.num_layers}"] = affine_backward(dloss, caches[self.num_layer])
+        # do the grads for the last layer
+        inter_grads[nlayers], grads[f'W{nlayers}'], grads[f"b{nlayers}"] = affine_backward(dloss, caches[nlayers])
+        grads[f"W{nlayers}"] += self.reg*self.params[f"W{nlayers}"]
+        loss += l2_loss(nlayers)
 
-        for i in range(self.num_layers, 0, -1):
-            affine_relu_backward( caches[i])
+        # calc grads for all previous layers with L2 reg
+        for i in range(nlayers - 1, 0, -1):
+            inter_grads[i], grads[f"W{i}"], grads[f"b{i}"] = affine_relu_backward(inter_grads[i + 1], caches[i])
+            grads[f"W{i}"] += self.reg*self.params[f"W{i}"] # add l2 loss grad for each layer
+            loss += l2_loss(i) # add l2 loss for each layer
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
