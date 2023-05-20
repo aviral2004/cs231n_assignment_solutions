@@ -26,8 +26,8 @@ def affine_forward(x, w, b):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     N = x.shape[0]
-    _x = x.reshape(N, np.product(x.shape[1:]))
-    out = _x @ w + b
+    _x = x.reshape(N, np.product(x.shape[1:])) # N X D
+    out = _x @ w + b # N X M
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -60,7 +60,7 @@ def affine_backward(dout, cache):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     dx = (dout @ w.T).reshape(x.shape)
-    dw = x.reshape(x.shape[0], -1).T @ dout
+    dw = x.reshape(x.shape[0], -1).T @ dout # (D X N) @ (N X M)
     db = np.sum(dout, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -233,7 +233,18 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        mean = np.mean(x, axis=0)
+        var = np.var(x, axis=0)
+
+        x_offset = x - mean
+        var_sqrt = np.sqrt(var + eps)
+        x_normalised =  x_offset / var_sqrt # (N X D)
+        out = gamma * x_normalised + beta
+
+        running_mean = momentum * running_mean + (1 - momentum) * mean
+        running_var = momentum * running_var + (1 - momentum) * var
+
+        cache = out, x_normalised, x_offset, var_sqrt, gamma
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -248,7 +259,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        x = (x - running_mean) / np.sqrt(running_var + eps)
+        out = gamma * x + beta
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -257,7 +269,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     else:
         raise ValueError('Invalid forward batchnorm mode "%s"' % mode)
 
-    # Store the updated running means back into bn_param
+    # Store the updated running means back into bn_para m
     bn_param["running_mean"] = running_mean
     bn_param["running_var"] = running_var
 
@@ -289,7 +301,35 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out, x_normalised, x_offset, var_sqrt, gamma = cache
+
+    N = dout.shape[0]
+    D = dout.shape[1]
+
+    dbeta = np.sum(dout, axis=0)
+
+    # y = gamma * x_normalised + beta
+    # ∂yi/∂gamma = x_normalised_i
+
+    dgamma = np.sum(dout * x_normalised, axis = 0) # matmul does dimension wise sum over all the samples
+
+    dx_normalised = gamma * dout
+
+    ddiv = np.sum(x_offset * dx_normalised, axis = 0)
+    dsqrt = (-1/np.square(var_sqrt)) * ddiv
+    dvar = (1/(2*var_sqrt)) * dsqrt
+    dsquare_sum = 2 * x_offset * ((1/N)*np.ones((N, D)) * dvar)
+
+    dx_offset_1 = (1/var_sqrt) * dx_normalised
+    dx_offset_2 = dsquare_sum
+    dx_offset = (dx_offset_1 + dx_offset_2)
+
+    dmean = np.sum(-1 * (dx_offset), axis=0)
+
+    dx_1 = 1 * (dx_offset_1 + dx_offset_2)
+    dx_2 = (1/N) * np.ones((N, D)) * dmean
+
+    dx = dx_1 + dx_2
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -322,8 +362,19 @@ def batchnorm_backward_alt(dout, cache):
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    out, x_normalised, x_offset, var_sqrt, gamma = cache
 
-    pass
+    N = dout.shape[0]
+    D = dout.shape[1]
+
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_normalised, axis = 0)
+
+    dx_normalised = gamma * dout
+    dx_nom = (N * dx_normalised) - np.sum(dx_normalised, axis = 0) - x_normalised * np.sum(dx_normalised * x_normalised, axis = 0)
+    dx_denom = N * var_sqrt
+
+    dx = dx_nom / dx_denom
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -368,7 +419,17 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    eps = ln_param.get('eps', 1e-5)
+    N, D = x.shape
+
+    sample_mean = np.mean(x, axis = 1).reshape((N, 1))
+    sample_var = np.var(x, axis = 1).reshape((N, 1))
+    sample_std = np.sqrt(sample_var + eps)
+
+    x_offset = x - sample_mean
+    x_normalised = x_offset/sample_std
+    
+    out = gamma * x_normalised + beta
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

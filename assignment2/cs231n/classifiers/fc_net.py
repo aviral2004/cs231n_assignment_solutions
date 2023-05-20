@@ -77,18 +77,20 @@ class FullyConnectedNet(object):
         self.params["W1"] = np.random.normal(0, weight_scale, (input_dim, hidden_dims[0]))
         self.params['b1'] = np.zeros(hidden_dims[0])
 
+        if self.normalization is not None:
+            self.params[f"gamma1"] = np.ones(hidden_dims[0])
+            self.params[f"beta1"] = np.zeros(hidden_dims[0])
+
         for i in range(self.num_layers - 2):
             self.params[f"W{i + 2}"] = np.random.normal(0, weight_scale, (hidden_dims[i], hidden_dims[i + 1])) # initialising all the weights to a normal distribution of mean = 0, and std = weight_scale
             self.params[f"b{i + 2}"] = np.zeros(hidden_dims[i + 1])
 
+            if self.normalization is not None:
+                self.params[f"gamma{i + 2}"] = np.ones(hidden_dims[i + 1]) # scale params for each dimension of the batchnorm layer
+                self.params[f"beta{i + 2}"] = np.zeros(hidden_dims[i + 1]) # shift params for each dimension of the batchnorm layer
+
         self.params[f"W{self.num_layers}"] = np.random.normal(0, weight_scale, (hidden_dims[-1], num_classes))
         self.params[f"b{self.num_layers}"] = np.zeros(num_classes)
-
-        if normalization is not None:
-            for i in range(self.num_layers - 1):
-                self.params[f"gamma{i + 1}"] = 1
-                self.params[f"beta{i + 1}"] = 0
-
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -166,17 +168,20 @@ class FullyConnectedNet(object):
 
         nlayers = self.num_layers
 
-        f_outs[1], caches[1] = affine_relu_forward(X, self.params['W1'], self.params['b1'])
-
         if self.normalization is None:
+            f_outs[1], caches[1] = affine_relu_forward(X, self.params['W1'], self.params['b1'])
+
             for i in range(nlayers - 2):
                 f_outs[i + 2], caches[i + 2] = affine_relu_forward(f_outs[i + 1], self.params[f"W{i + 2}"], self.params[f"b{i + 2}"])
 
             scores, caches[nlayers] = affine_forward(f_outs[self.num_layers - 1], self.params[f"W{nlayers}"], self.params[f"b{nlayers}"])
         else:
-            # for i in range(self.num_layers - 2):
-            #     f_outs[i + 2], caches[i + 2] = affine_relu_forward(f_outs[i + 1], self.params[f"W{i + 2}"], self.params[f"b{i + 2}"])
-            pass
+            f_outs[1], caches[1] = affine_bn_relu_forward(X, self.params['W1'], self.params['b1'], self.params['gamma1'], self.params['beta1'], self.bn_params[0])
+
+            for i in range(nlayers - 2):
+                f_outs[i + 2], caches[i + 2] = affine_bn_relu_forward(f_outs[i + 1], self.params[f"W{i + 2}"], self.params[f"b{i + 2}"], self.params[f"gamma{i + 2}"], self.params[f"beta{i + 2}"], self.bn_params[i + 1])
+
+            scores, caches[nlayers] = affine_forward(f_outs[self.num_layers - 1], self.params[f"W{nlayers}"], self.params[f"b{nlayers}"])
 
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -207,19 +212,25 @@ class FullyConnectedNet(object):
         loss, dloss = softmax_loss(scores, y)
 
         inter_grads = {}
-        l2_loss = lambda n: 0.5 * self.reg * np.sum(self.params[f"W{n}"]**2)
+        l2_loss_grad = lambda n: 0.5 * self.reg * np.sum(self.params[f"W{n}"]**2)
 
         # do the grads for the last layer
         inter_grads[nlayers], grads[f'W{nlayers}'], grads[f"b{nlayers}"] = affine_backward(dloss, caches[nlayers])
         grads[f"W{nlayers}"] += self.reg*self.params[f"W{nlayers}"]
-        loss += l2_loss(nlayers)
+        loss += l2_loss_grad(nlayers)
 
         # calc grads for all previous layers with L2 reg
-        for i in range(nlayers - 1, 0, -1):
-            inter_grads[i], grads[f"W{i}"], grads[f"b{i}"] = affine_relu_backward(inter_grads[i + 1], caches[i])
-            grads[f"W{i}"] += self.reg*self.params[f"W{i}"] # add l2 loss grad for each layer
-            loss += l2_loss(i) # add l2 loss for each layer
-
+        if self.normalization is None:
+            for i in range(nlayers - 1, 0, -1):
+                inter_grads[i], grads[f"W{i}"], grads[f"b{i}"] = affine_relu_backward(inter_grads[i + 1], caches[i])
+                grads[f"W{i}"] += self.reg*self.params[f"W{i}"] # add l2 loss grad for each layer
+                loss += l2_loss_grad(i) # add l2 loss for each layer
+        else:
+            for i in range(nlayers - 1, 0, -1):
+                inter_grads[i], grads[f"W{i}"], grads[f"b{i}"], grads[f"gamma{i}"], grads[f"beta{i}"] = affine_bn_relu_backward(inter_grads[i + 1], caches[i])
+                grads[f"W{i}"] += self.reg*self.params[f"W{i}"] # add l2 loss grad for each layer
+                loss += l2_loss_grad(i) # add l2 loss for each layer
+            
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
         #                             END OF YOUR CODE                             #
