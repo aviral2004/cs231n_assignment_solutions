@@ -422,14 +422,20 @@ def layernorm_forward(x, gamma, beta, ln_param):
     eps = ln_param.get('eps', 1e-5)
     N, D = x.shape
 
-    sample_mean = np.mean(x, axis = 1).reshape((N, 1))
-    sample_var = np.var(x, axis = 1).reshape((N, 1))
+    x = x.T # (D, N)
+
+    sample_mean = np.mean(x, axis = 0)
+    sample_var = np.var(x, axis = 0)
     sample_std = np.sqrt(sample_var + eps)
 
-    x_offset = x - sample_mean
-    x_normalised = x_offset/sample_std
+    x_offset = x - sample_mean # (D, N)
+    x_normalised = x_offset/sample_std # (D, N)
+
+    x_normalised = x_normalised.T # transpose back to (N, D)
     
-    out = gamma * x_normalised + beta
+    out = (gamma * x_normalised) + beta # (N, D)
+
+    cache = out, x_normalised, sample_std, gamma
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -463,13 +469,26 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out, x_normalised, var_sqrt, gamma = cache
+
+    N, D = dout.shape
+
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_normalised, axis = 0)
+
+    dx_normalised = (gamma * dout).T
+    x_normalised = x_normalised.T
+    
+    dx_nom = (D * dx_normalised) - np.sum(dx_normalised, axis = 0) - x_normalised * np.sum(dx_normalised * x_normalised, axis = 0)
+    dx_denom = D * var_sqrt
+
+    dx = dx_nom / dx_denom
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    return dx, dgamma, dbeta
+    return dx.T, dgamma, dbeta
 
 
 def dropout_forward(x, dropout_param):
