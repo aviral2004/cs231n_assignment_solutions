@@ -70,6 +70,66 @@ def affine_ln_relu_backward(dout, cache):
 
     return dout3, dw, db, dgamma, dbeta
 
+
+def gen_affine_relu_forward(x, w, b, use_dropout, dropout_param):
+    dropout_cache = None
+
+    a, fc_cache = affine_forward(x, w, b)
+    out, relu_cache = relu_forward(a)
+    if use_dropout:
+        out, dropout_cache = dropout_forward(out, dropout_param)
+    
+    cache = (fc_cache, relu_cache, dropout_cache)
+    return out, cache
+
+
+def gen_affine_relu_backward(dout, cache, use_dropout):
+    fc_cache, relu_cache, dropout_cache = cache
+
+    if use_dropout:
+        dout = dropout_backward(dout, dropout_cache)
+
+    dout = relu_backward(dout, relu_cache)
+
+    dx, dw, db = affine_backward(dout, fc_cache)
+
+    return dx, dw, db
+
+
+def gen_affine_norm_forward(x, w, b, gamma, beta, normalisation, use_dropout, bn_param, dropout_param):
+    norm_cache, dropout_cache = None, None
+
+    a, fc_cache = affine_forward(x, w, b)
+    if normalisation == 'batchnorm':
+        a, norm_cache = batchnorm_forward(a, gamma, beta, bn_param)
+    elif normalisation == 'layernorm':
+        a, norm_cache = layernorm_forward(a, gamma, beta, bn_param)
+    
+    out, relu_cache = relu_forward(a)
+    if use_dropout:
+        out, dropout_cache = dropout_forward(out, dropout_param)
+
+    cache = (fc_cache, norm_cache, relu_cache, dropout_cache)
+    return out, cache
+
+
+def gen_affine_norm_backward(dout, cache, normalisation, use_dropout):
+    fc_cache, norm_cache, relu_cache, dropout_cache = cache
+
+    if use_dropout:
+        dout = dropout_backward(dout, dropout_cache)
+
+    dout = relu_backward(dout, relu_cache)
+
+    if normalisation == 'batchnorm':
+        dout, dgamma, dbeta = batchnorm_backward_alt(dout, norm_cache)
+    elif normalisation == 'layernorm':
+        dout, dgamma, dbeta = layernorm_backward(dout, norm_cache)
+
+    dx, dw, db = affine_backward(dout, fc_cache)
+
+    return dx, dw, db, dgamma, dbeta
+
 # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
 def conv_relu_forward(x, w, b, conv_param):
