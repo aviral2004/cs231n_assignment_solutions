@@ -1,6 +1,7 @@
 import torch
 import random
 import torchvision.transforms as T
+import torch.nn.functional as F
 import numpy as np
 from .image_utils import SQUEEZENET_MEAN, SQUEEZENET_STD
 from scipy.ndimage.filters import gaussian_filter1d
@@ -34,7 +35,15 @@ def compute_saliency_maps(X, y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    scores = model(X)
+
+    # scores = scores.gather(1, y.view(-1, 1)).squeeze() I dont know why they mentioned gather, so I tried this but the other thing works fine
+    # scores = scores.sum()
+    
+    loss = torch.nn.functional.cross_entropy(scores, y, reduction='sum')
+
+    loss.backward()
+    saliency, _ = X.grad.abs().max(dim=1)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -76,7 +85,26 @@ def make_fooling_image(X, target_y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    target_y = torch.tensor(target_y)
+    counter = 1
+    pred_y = -1
+
+    while pred_y != target_y:
+        scores = model(X_fooling).squeeze()
+        loss = F.cross_entropy(scores, target_y) # find loss with respect to class which we want it to wrongly predict
+        loss.backward()
+
+        print(f"update {counter}  loss: {loss}")
+
+        # gradient ascent
+        # necessarily need to add no_grad context manager to update in place: https://stackoverflow.com/questions/71241940/whats-the-proper-way-to-update-a-leaf-tensors-values-e-g-during-the-update-s
+        with torch.no_grad():
+            dX = learning_rate * X_fooling.grad / torch.norm(X_fooling.grad)
+            X_fooling -= dX
+
+        pred_y = model(X_fooling).argmax()
+
+        counter += 1
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -94,7 +122,14 @@ def class_visualization_update_step(img, model, target_y, l2_reg, learning_rate)
     ########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # img: (1, 2, 224, 224)
+
+    scores = model(img).squeeze()[target_y] - l2_reg*torch.norm(img)
+    scores.backward()
+
+    with torch.no_grad():
+        img += learning_rate * img.grad / torch.norm(img.grad) # have to regularise the gradient
+        img.grad.zero_()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ########################################################################
