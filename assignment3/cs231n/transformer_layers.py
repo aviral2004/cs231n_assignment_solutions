@@ -38,7 +38,13 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        j_indices = torch.arange(0, embed_dim, 2)
+        j_indices = 10000**(-j_indices/embed_dim)
+
+        i_indices = torch.arange(max_len).unsqueeze(1) # (max_len, 1)
+
+        pe[:, :, ::2] = torch.sin(i_indices * j_indices)
+        pe[:, :, 1::2] = torch.cos(i_indices * j_indices)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -70,7 +76,8 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        output = x + self.pe[:, :S, :]
+        output = self.dropout(output)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -165,7 +172,19 @@ class MultiHeadAttention(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        head_split = lambda x: torch.stack(torch.split(x, self.head_dim, dim=2), dim=1) # (N, H, S or T, E/H)
+        queries, keys, values = head_split(self.query(query)), head_split(self.key(key)), head_split(self.value(value))
+
+        attention = torch.matmul(queries, keys.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        if attn_mask is not None:
+            attention = torch.masked_fill(attention, attn_mask == 0, -float("inf"))
+        attention = F.softmax(attention, dim=-1)
+        attention = self.attn_drop(attention)
+
+        output = torch.matmul(attention, values)
+
+        output = output.transpose(1, 2).reshape(N, S, -1)
+        output = self.proj(output)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
